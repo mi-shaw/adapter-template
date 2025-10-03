@@ -16,7 +16,6 @@ package adapter
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,8 +28,10 @@ import (
 
 const (
 	// SCAFFOLDING #11 - pkg/adapter/datasource.go: Update the set of valid entity types this adapter supports.
-	Users  string = "users"
-	Groups string = "groups"
+
+	// PagerDuty implementation: added Teams entity type
+	// Extendable: add other entity types from PagerDuty
+	Teams string = "teams"
 )
 
 // Entity contains entity specific information, such as the entity's unique ID attribute and the
@@ -42,6 +43,10 @@ type Entity struct {
 
 	// uniqueIDAttrExternalID is the external ID of the entity's uniqueId attribute.
 	uniqueIDAttrExternalID string
+
+	// PagerDuty implementation: added a field to store the endpoint URI to reference when querying the entity
+	// TO-DO: implement use of this field
+	URI string
 }
 
 // Datasource directly implements a Client interface to allow querying
@@ -50,11 +55,15 @@ type Datasource struct {
 	Client *http.Client
 }
 
-type DatasourceResponse struct {
+// PagerDuty implementation: udpated DatasourceResponse struct to DatasourceResponseTeams
+// Extendable: add other datasource response structs for other entity types
+type DatasourceResponseTeams struct {
 	// SCAFFOLDING #13  - pkg/adapter/datasource.go: Add or remove fields in the response as necessary. This is used to unmarshal the response from the SoR.
 
 	// SCAFFOLDING #14 - pkg/adapter/datasource.go: Update `objects` with field name in the SoR response that contains the list of objects.
-	Objects []map[string]any `json:"objects,omitempty"`
+	Objects []map[string]any `json:"teams,omitempty"`
+	Cursor  int              `json:"offset,omitempty"`
+	More    bool             `json:"more,omitempty"`
 }
 
 var (
@@ -62,12 +71,12 @@ var (
 
 	// ValidEntityExternalIDs is a map of valid external IDs of entities that can be queried.
 	// The map value is the Entity struct which contains the unique ID attribute.
+
+	// PagerDuty implementation: replaced with Teams entity
+	// Extendable: add other valid entity types available from PagerDuty
 	ValidEntityExternalIDs = map[string]Entity{
-		Users: {
-			uniqueIDAttrExternalID: "user_id",
-		},
-		Groups: {
-			uniqueIDAttrExternalID: "group_id",
+		Teams: {
+			uniqueIDAttrExternalID: "id",
 		},
 	}
 )
@@ -87,7 +96,20 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	// SCAFFOLDING #16 - pkg/adapter/datasource.go: Create the SoR API URL
 	// Populate the request with the appropriate path, headers, and query parameters to query the
 	// datasource.
-	url := fmt.Sprintf("%s/api/%s", request.BaseURL, request.EntityExternalID)
+
+	// PagerDuty: append base URL with the entity external ID as the URI
+	// TO-DO: confirm the external ID always matches the URI
+	url := fmt.Sprintf("%s/%s", request.BaseURL, request.EntityExternalID)
+
+	// PagerDuty: if PageSize is set, add to query
+	if request.PageSize > 0 {
+		url = fmt.Sprintf("%s?limit=%d", url, request.PageSize)
+	}
+
+	// PagerDuty: if Cursor is set, add to query
+	if request.Cursor != "" {
+		url = fmt.Sprintf("%s&offset=%s", url, request.Cursor)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -107,14 +129,10 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	// Add headers to the request, if any.
 	// req.Header.Add("Accept", "application/json")
 
-	if request.Token == "" {
-		// Basic Authentication
-		auth := request.Username + ":" + request.Password
-		req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
-	} else {
-		// Auth Token for Bearer or OAuth2.0 Client Credentials flow
-		req.Header.Add("Authorization", request.Token)
-	}
+	// PagerDuty: add Headers
+	req.Header.Add("Accept", "")
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", request.Token)
 
 	res, err := d.Client.Do(req)
 	if err != nil {
@@ -144,19 +162,37 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	}
 	// SCAFFOLDING #17-1 - pkg/adapter/datasource.go: To add support for multiple entities that require different parsing functions
 	// Add code to call different ParseResponse functions for each entity response.
-	objects, nextCursor, parseErr := ParseResponse(body)
-	if parseErr != nil {
-		return nil, parseErr
+
+	// PagerDuty: add switch case for Teams entity and others
+	// Extendable: add cases for other entity types
+	// TO-DO: fix default case
+	switch request.EntityExternalID {
+	case Teams:
+		objects, nextCursor, parseErr := ParseResponseTeams(body)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		response.Objects = objects
+		response.NextCursor = nextCursor
+
+		return response, nil
+	default:
+		objects, nextCursor, parseErr := ParseResponseTeams(body)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		response.Objects = objects
+		response.NextCursor = nextCursor
+
+		return response, nil
 	}
 
-	response.Objects = objects
-	response.NextCursor = nextCursor
-
-	return response, nil
 }
 
-func ParseResponse(body []byte) (objects []map[string]any, nextCursor string, err *framework.Error) {
-	var data *DatasourceResponse
+// PagerDuty: updated ParseResponse function to ParseResponseTeams
+// Extendable: add parse response functions for other entity types
+func ParseResponseTeams(body []byte) (objects []map[string]any, nextCursor string, err *framework.Error) {
+	var data *DatasourceResponseTeams
 
 	unmarshalErr := json.Unmarshal(body, &data)
 	if unmarshalErr != nil {
@@ -171,7 +207,11 @@ func ParseResponse(body []byte) (objects []map[string]any, nextCursor string, er
 
 	// SCAFFOLDING #19 - pkg/adapter/datasource.go: Populate next page information (called cursor in SGNL adapters).
 	// Populate nextCursor with the cursor returned from the datasource, if present.
-	nextCursor = ""
 
+	// PagerDuty: if more results available, retrieve offset and increment 1 to give nextCursor
+	if data.More {
+		cursorIncrement := data.Cursor + 1
+		nextCursor = fmt.Sprintf("%d", cursorIncrement)
+	}
 	return data.Objects, nextCursor, nil
 }

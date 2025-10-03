@@ -37,6 +37,9 @@ type Request struct {
 	// BaseURL is the Base URL of the datasource to query.
 	BaseURL string
 
+	// PagerDuty implementation: full URL includes URI of the resource being requested, e.g. /teams
+	FullURL string
+
 	// Username is the username to use to authenticate with the datasource.
 	Username string
 

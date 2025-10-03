@@ -57,7 +57,10 @@ func main() {
 	// type configured on the Adapter object via the SGNL Config API.
 	//
 	// If you need to run multiple adapters on the same gRPC server, they can be registered here.
-	err = server.RegisterAdapter(adapterServer, "Test-1.0.0", adapter.NewAdapter(adapter.NewClient(*Timeout)))
+
+	pagerDutySourceType := "Test-1.0.0"
+
+	err = server.RegisterAdapter(adapterServer, pagerDutySourceType, adapter.NewAdapter(adapter.NewClient(*Timeout)))
 	if err != nil {
 		logger.Fatalf("Failed to register adapter: %v", err)
 	}

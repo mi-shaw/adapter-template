@@ -39,14 +39,18 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 	}
 
 	// SCAFFOLDING #8 - pkg/adapter/validation.go: Modify this validation to match the authn mechanism(s) supported by the SoR.
-	if request.Auth == nil || request.Auth.Basic == nil {
+
+	// PagerDuty: Check for an API auth token
+	if request.Auth == nil || request.Auth.HTTPAuthorization == "" {
 		return &framework.Error{
-			Message: "Provided datasource auth is missing required basic credentials.",
+			Message: "PagerDuty auth is missing required token.",
 			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_INVALID_DATASOURCE_CONFIG,
 		}
 	}
 
-	if _, found := ValidEntityExternalIDs[request.Entity.ExternalId]; !found {
+	entityExternalId := request.Entity.ExternalId
+
+	if _, found := ValidEntityExternalIDs[entityExternalId]; !found {
 		return &framework.Error{
 			Message: "Provided entity external ID is invalid.",
 			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_INVALID_ENTITY_CONFIG,
@@ -55,12 +59,11 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 
 	// Validate that at least the unique ID attribute for the requested entity
 	// is requested.
-	var uniqueIDAttributeFound bool
+	var uniqueIDAttributeFound bool // TODO: confirm this is automatically assigned false
 
 	for _, attribute := range request.Entity.Attributes {
-		if attribute.ExternalId == ValidEntityExternalIDs[request.Entity.ExternalId].uniqueIDAttrExternalID {
+		if attribute.ExternalId == ValidEntityExternalIDs[entityExternalId].uniqueIDAttrExternalID {
 			uniqueIDAttributeFound = true
-
 			break
 		}
 	}
@@ -86,9 +89,11 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 	// If the datasource doesn't support sorting results by unique ID
 	// attribute for the requested entity, check instead that Ordered is set to
 	// false.
-	if !request.Ordered {
+
+	// PagerDuty implementation: require Ordered to be false
+	if request.Ordered {
 		return &framework.Error{
-			Message: "Ordered must be set to true.",
+			Message: "Ordered must be set to false.",
 			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_INVALID_ENTITY_CONFIG,
 		}
 	}

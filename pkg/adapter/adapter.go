@@ -62,19 +62,16 @@ func (a *Adapter) RequestPageFromDatasource(
 	// If necessary, update this entire method to query your SoR. All of the code in this function
 	// can be updated to match your SoR requirements.
 
+	// PagerDuty implementation: remove Basic Auth
 	if !strings.HasPrefix(request.Address, "https://") {
 		request.Address = "https://" + request.Address
 	}
 	req := &Request{
 		BaseURL: request.Address,
 
-		// Basic Auth
-		Username: request.Auth.Basic.Username,
-		Password: request.Auth.Basic.Password,
-
 		// API Key or OAuth2 Token
-		Token:            request.Auth.HTTPAuthorization,
-		
+		Token: request.Auth.HTTPAuthorization,
+
 		PageSize:         request.PageSize,
 		EntityExternalID: request.Entity.ExternalId,
 		Cursor:           request.Cursor,
