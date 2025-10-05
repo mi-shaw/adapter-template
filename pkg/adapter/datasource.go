@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"time"
 
 	framework "github.com/sgnl-ai/adapter-framework"
@@ -29,9 +31,13 @@ import (
 const (
 	// SCAFFOLDING #11 - pkg/adapter/datasource.go: Update the set of valid entity types this adapter supports.
 
-	// PagerDuty implementation: added Teams entity type
+	// PagerDuty: added Teams entity type
 	// Extendable: add other entity types from PagerDuty
 	Teams string = "teams"
+
+	// PagerDuty header values
+	AcceptContent string = "application/vnd.pagerduty+json;version=2"
+	ContentType   string = "application/json"
 )
 
 // Entity contains entity specific information, such as the entity's unique ID attribute and the
@@ -43,10 +49,6 @@ type Entity struct {
 
 	// uniqueIDAttrExternalID is the external ID of the entity's uniqueId attribute.
 	uniqueIDAttrExternalID string
-
-	// PagerDuty implementation: added a field to store the endpoint URI to reference when querying the entity
-	// TO-DO: implement use of this field
-	URI string
 }
 
 // Datasource directly implements a Client interface to allow querying
@@ -55,15 +57,17 @@ type Datasource struct {
 	Client *http.Client
 }
 
-// PagerDuty implementation: udpated DatasourceResponse struct to DatasourceResponseTeams
+// PagerDuty: udpated DatasourceResponse struct to DatasourceResponseTeams
 // Extendable: add other datasource response structs for other entity types
 type DatasourceResponseTeams struct {
 	// SCAFFOLDING #13  - pkg/adapter/datasource.go: Add or remove fields in the response as necessary. This is used to unmarshal the response from the SoR.
 
 	// SCAFFOLDING #14 - pkg/adapter/datasource.go: Update `objects` with field name in the SoR response that contains the list of objects.
 	Objects []map[string]any `json:"teams,omitempty"`
-	Cursor  int              `json:"offset,omitempty"`
-	More    bool             `json:"more,omitempty"`
+
+	// PagerDuty: Store Offset and More as pointers to be able to check for nil during response validation from datasource
+	Offset *int  `json:"offset,omitempty"`
+	More   *bool `json:"more,omitempty"`
 }
 
 var (
@@ -72,7 +76,7 @@ var (
 	// ValidEntityExternalIDs is a map of valid external IDs of entities that can be queried.
 	// The map value is the Entity struct which contains the unique ID attribute.
 
-	// PagerDuty implementation: replaced with Teams entity
+	// PagerDuty: replaced with Teams entity
 	// Extendable: add other valid entity types available from PagerDuty
 	ValidEntityExternalIDs = map[string]Entity{
 		Teams: {
@@ -97,24 +101,31 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	// Populate the request with the appropriate path, headers, and query parameters to query the
 	// datasource.
 
-	// PagerDuty: append base URL with the entity external ID as the URI
-	// TO-DO: confirm the external ID always matches the URI
-	url := fmt.Sprintf("%s/%s", request.BaseURL, request.EntityExternalID)
-
-	// PagerDuty: if PageSize is set, add to query
-	if request.PageSize > 0 {
-		url = fmt.Sprintf("%s?limit=%d", url, request.PageSize)
-	}
-
-	// PagerDuty: if Cursor is set, add to query
-	if request.Cursor != "" {
-		url = fmt.Sprintf("%s&offset=%s", url, request.Cursor)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// PagerDuty: consruct full URL with base URL, URI, and query parameters.
+	url, err := url.Parse(request.BaseURL)
 	if err != nil {
 		return nil, &framework.Error{
-			Message: "Failed to create HTTP request to datasource.",
+			Message: fmt.Sprintf("Failed to parse the datasource base URL: %v.", err),
+			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_INVALID_DATASOURCE_CONFIG,
+		}
+	}
+
+	// Add path and query parameters
+	url.Path = path.Join(url.Path, request.Path)
+
+	// Always set limit. Set Cursor if provided
+	query := url.Query()
+	query.Set("limit", fmt.Sprintf("%d", request.PageSize))
+	if request.Cursor != "" {
+		query.Set("offset", request.Cursor)
+	}
+
+	url.RawQuery = query.Encode()
+
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
+	if err != nil {
+		return nil, &framework.Error{
+			Message: fmt.Sprintf("Failed to create HTTP request to datasource: %v.", err),
 			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_INTERNAL,
 		}
 	}
@@ -130,8 +141,8 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	// req.Header.Add("Accept", "application/json")
 
 	// PagerDuty: add Headers
-	req.Header.Add("Accept", "")
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", AcceptContent)
+	req.Header.Add("Content-Type", ContentType)
 	req.Header.Add("Authorization", request.Token)
 
 	res, err := d.Client.Do(req)
@@ -160,37 +171,33 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_DATASOURCE_FAILED,
 		}
 	}
+
 	// SCAFFOLDING #17-1 - pkg/adapter/datasource.go: To add support for multiple entities that require different parsing functions
 	// Add code to call different ParseResponse functions for each entity response.
 
-	// PagerDuty: add switch case for Teams entity and others
-	// Extendable: add cases for other entity types
-	// TO-DO: fix default case
+	// PagerDuty: added switch case for Teams entity. Extend by adding cases for other entity types
 	switch request.EntityExternalID {
 	case Teams:
 		objects, nextCursor, parseErr := ParseResponseTeams(body)
 		if parseErr != nil {
 			return nil, parseErr
 		}
+
 		response.Objects = objects
 		response.NextCursor = nextCursor
-
 		return response, nil
+
+	//If no supported entity type is requested, return error. This should not happen due to prior validation.
 	default:
-		objects, nextCursor, parseErr := ParseResponseTeams(body)
-		if parseErr != nil {
-			return nil, parseErr
+		return nil, &framework.Error{
+			Message: "Provided entity external ID is invalid.",
+			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_INVALID_ENTITY_CONFIG,
 		}
-		response.Objects = objects
-		response.NextCursor = nextCursor
 
-		return response, nil
 	}
-
 }
 
-// PagerDuty: updated ParseResponse function to ParseResponseTeams
-// Extendable: add parse response functions for other entity types
+// PagerDuty: updated ParseResponse function to ParseResponseTeams. Add parse response functions for other entity types
 func ParseResponseTeams(body []byte) (objects []map[string]any, nextCursor string, err *framework.Error) {
 	var data *DatasourceResponseTeams
 
@@ -205,12 +212,35 @@ func ParseResponseTeams(body []byte) (objects []map[string]any, nextCursor strin
 	// SCAFFOLDING #18 - pkg/adapter/datasource.go: Add response validations.
 	// Add necessary validations to check if the response from the datasource is what is expected.
 
+	// PagerDuty: check for Teams, Offset, and More in response. Used pointers for Offset and More to check for nil
+	if data.Objects == nil {
+		return nil, "", &framework.Error{
+			Message: fmt.Sprintf("Datasource response is missing the expected objects tag: %s.", Teams),
+			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_DATASOURCE_FAILED,
+		}
+	}
+
+	if data.Offset == nil {
+		return nil, "", &framework.Error{
+			Message: "Datasource response is missing the 'offset' tag.",
+			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_DATASOURCE_FAILED,
+		}
+	}
+
+	if data.More == nil {
+		return nil, "", &framework.Error{
+			Message: "Datasource response is missing the 'more' tag.",
+			Code:    api_adapter_v1.ErrorCode_ERROR_CODE_DATASOURCE_FAILED,
+		}
+	}
+
 	// SCAFFOLDING #19 - pkg/adapter/datasource.go: Populate next page information (called cursor in SGNL adapters).
 	// Populate nextCursor with the cursor returned from the datasource, if present.
 
-	// PagerDuty: if more results available, retrieve offset and increment 1 to give nextCursor
-	if data.More {
-		cursorIncrement := data.Cursor + 1
+	// PagerDuty: if more results available, increment the offset by the number of objects returned to get nextCursor
+	// If no more results, nextCursor is empty
+	if *data.More {
+		cursorIncrement := *data.Offset + len(data.Objects)
 		nextCursor = fmt.Sprintf("%d", cursorIncrement)
 	}
 	return data.Objects, nextCursor, nil

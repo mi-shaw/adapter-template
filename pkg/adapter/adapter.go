@@ -34,6 +34,14 @@ type Adapter struct {
 	Client Client
 }
 
+// PagerDuty: map of entity IDs mapped to the path to use when querying that entity
+// Extend with other entity type URIs as needed
+var (
+	Paths = map[string]string{
+		Teams: "teams",
+	}
+)
+
 // NewAdapter instantiates a new Adapter.
 //
 // SCAFFOLDING #21 - pkg/adapter/adapter.go: Add or remove parameters to match field updates above.
@@ -62,12 +70,14 @@ func (a *Adapter) RequestPageFromDatasource(
 	// If necessary, update this entire method to query your SoR. All of the code in this function
 	// can be updated to match your SoR requirements.
 
-	// PagerDuty implementation: remove Basic Auth
 	if !strings.HasPrefix(request.Address, "https://") {
 		request.Address = "https://" + request.Address
 	}
 	req := &Request{
 		BaseURL: request.Address,
+
+		// PagerDuty: add path based on reference to entity external ID in reference map
+		Path: Paths[request.Entity.ExternalId],
 
 		// API Key or OAuth2 Token
 		Token: request.Auth.HTTPAuthorization,

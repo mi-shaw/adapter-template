@@ -40,7 +40,7 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 
 	// SCAFFOLDING #8 - pkg/adapter/validation.go: Modify this validation to match the authn mechanism(s) supported by the SoR.
 
-	// PagerDuty: Check for an API auth token
+	// PagerDuty: Check for an API auth token. Ignore Basic auth
 	if request.Auth == nil || request.Auth.HTTPAuthorization == "" {
 		return &framework.Error{
 			Message: "PagerDuty auth is missing required token.",
@@ -59,7 +59,7 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 
 	// Validate that at least the unique ID attribute for the requested entity
 	// is requested.
-	var uniqueIDAttributeFound bool // TODO: confirm this is automatically assigned false
+	var uniqueIDAttributeFound bool
 
 	for _, attribute := range request.Entity.Attributes {
 		if attribute.ExternalId == ValidEntityExternalIDs[entityExternalId].uniqueIDAttrExternalID {
@@ -90,7 +90,7 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 	// attribute for the requested entity, check instead that Ordered is set to
 	// false.
 
-	// PagerDuty implementation: require Ordered to be false
+	// PagerDuty: require Ordered to be false
 	if request.Ordered {
 		return &framework.Error{
 			Message: "Ordered must be set to false.",
