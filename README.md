@@ -4,6 +4,8 @@ This SGNL Adapter Template has been modified to support calling the List Teams f
 
 The following link contains a PostMan collection of requests with test scripts to verify the expected output: https://mi-shaw-6703619.postman.co/workspace/SGNL-Testing~610251e4-f912-4953-b14a-f66345cfd8d7/collection/68e3c60bfb1f5c599aa280da?action=share&creator=48957326
 
+authTokens.json file is not included here.
+
 
 # SGNL Adapter Template
 
