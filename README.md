@@ -2,7 +2,7 @@
 
 This SGNL Adapter Template has been modified to support calling the List Teams function from PagerDuty's test API. Comments starting with //PAGERDUTY: are included to explain changes made to the template. Comments starting with //PAGERDUTY EXTEND # are also added to note where the implementation can be extended to support other Entity Types from PagerDuty, as well as other operations within the Teams entity (e.g. retrieving a specific team with /team/{id})
 
-The following link contains a PostMan collection of requests with test scripts to verify the expected output: https://mi-shaw-6703619.postman.co/workspace/mi-shaw's-Workspace~eb324a83-93c8-4430-8b90-956acd067e62/collection/68e3c60bfb1f5c599aa280da?action=share&source=copy-link&creator=48957326
+The following link contains a PostMan collection of requests with test scripts to verify the expected output: https://mi-shaw-6703619.postman.co/workspace/SGNL-Testing~610251e4-f912-4953-b14a-f66345cfd8d7/collection/68e3c60bfb1f5c599aa280da?action=share&creator=48957326
 
 
 # SGNL Adapter Template
