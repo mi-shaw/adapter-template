@@ -31,11 +31,14 @@ import (
 const (
 	// SCAFFOLDING #11 - pkg/adapter/datasource.go: Update the set of valid entity types this adapter supports.
 
-	// PagerDuty: added Teams entity type
-	// Extendable: add other entity types from PagerDuty
-	Teams string = "teams"
+	// PAGERDUTY: added Teams entity type and a few others as examples for extending beyond Teams
+	// PAGERDUTY EXTEND #3: Add additional entity types as required with their unique name in PagerDuty system
+	Teams               string = "teams"
+	Services            string = "services"
+	EventOrchestrations string = "orchestrations"
+	AuditRecords        string = "records"
 
-	// PagerDuty header values
+	// PAGERDUTY: header values
 	AcceptContent string = "application/vnd.pagerduty+json;version=2"
 	ContentType   string = "application/json"
 )
@@ -57,8 +60,8 @@ type Datasource struct {
 	Client *http.Client
 }
 
-// PagerDuty: udpated DatasourceResponse struct to DatasourceResponseTeams
-// Extendable: add other datasource response structs for other entity types
+// PAGERDUTY: udpated DatasourceResponse struct to DatasourceResponseTeams
+// PAGERDUTY EXTEND #4: add other datasource response structs for other entity types
 type DatasourceResponseTeams struct {
 	// SCAFFOLDING #13  - pkg/adapter/datasource.go: Add or remove fields in the response as necessary. This is used to unmarshal the response from the SoR.
 
@@ -76,10 +79,19 @@ var (
 	// ValidEntityExternalIDs is a map of valid external IDs of entities that can be queried.
 	// The map value is the Entity struct which contains the unique ID attribute.
 
-	// PagerDuty: replaced with Teams entity
-	// Extendable: add other valid entity types available from PagerDuty
+	// PAGERDUTY: Added Teams entity and a few others as examples for extending beyond Teams
+	// PAGERDUTY ERXTENSION #4: Add additional entity types as required with their unique ID attribute name
 	ValidEntityExternalIDs = map[string]Entity{
 		Teams: {
+			uniqueIDAttrExternalID: "id",
+		},
+		Services: {
+			uniqueIDAttrExternalID: "id",
+		},
+		EventOrchestrations: {
+			uniqueIDAttrExternalID: "id",
+		},
+		AuditRecords: {
 			uniqueIDAttrExternalID: "id",
 		},
 	}
@@ -101,7 +113,7 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	// Populate the request with the appropriate path, headers, and query parameters to query the
 	// datasource.
 
-	// PagerDuty: consruct full URL with base URL, URI, and query parameters.
+	// PAGERDUTY: Updated the URL formation to use url package
 	url, err := url.Parse(request.BaseURL)
 	if err != nil {
 		return nil, &framework.Error{
@@ -110,10 +122,10 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 		}
 	}
 
-	// Add path and query parameters
+	// PAGERDUTY: Add path and query parameters
 	url.Path = path.Join(url.Path, request.Path)
 
-	// Always set limit. Set Cursor if provided
+	// PAGERDUTY: Always set limit. Set Cursor if provided
 	query := url.Query()
 	query.Set("limit", fmt.Sprintf("%d", request.PageSize))
 	if request.Cursor != "" {
@@ -140,7 +152,7 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	// Add headers to the request, if any.
 	// req.Header.Add("Accept", "application/json")
 
-	// PagerDuty: add Headers
+	// PAGERDUTY: add Headers
 	req.Header.Add("Accept", AcceptContent)
 	req.Header.Add("Content-Type", ContentType)
 	req.Header.Add("Authorization", request.Token)
@@ -175,7 +187,8 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	// SCAFFOLDING #17-1 - pkg/adapter/datasource.go: To add support for multiple entities that require different parsing functions
 	// Add code to call different ParseResponse functions for each entity response.
 
-	// PagerDuty: added switch case for Teams entity. Extend by adding cases for other entity types
+	// PAGERDUTY: added switch case for Teams entity.
+	// PAGERDUTY EXTEND #5: add cases for other entity types
 	switch request.EntityExternalID {
 	case Teams:
 		objects, nextCursor, parseErr := ParseResponseTeams(body)
@@ -187,7 +200,7 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 		response.NextCursor = nextCursor
 		return response, nil
 
-	//If no supported entity type is requested, return error. This should not happen due to prior validation.
+	//PAGERDUTY: If no supported entity type is requested, return error. This should not happen due to prior validation.
 	default:
 		return nil, &framework.Error{
 			Message: "Provided entity external ID is invalid.",
@@ -197,7 +210,8 @@ func (d *Datasource) GetPage(ctx context.Context, request *Request) (*Response, 
 	}
 }
 
-// PagerDuty: updated ParseResponse function to ParseResponseTeams. Add parse response functions for other entity types
+// PAGERDUTY: updated ParseResponse function to ParseResponseTeams.
+// PAGERDUTY EXTEND #6: add parse response functions for other entity types
 func ParseResponseTeams(body []byte) (objects []map[string]any, nextCursor string, err *framework.Error) {
 	var data *DatasourceResponseTeams
 
@@ -212,7 +226,7 @@ func ParseResponseTeams(body []byte) (objects []map[string]any, nextCursor strin
 	// SCAFFOLDING #18 - pkg/adapter/datasource.go: Add response validations.
 	// Add necessary validations to check if the response from the datasource is what is expected.
 
-	// PagerDuty: check for Teams, Offset, and More in response. Used pointers for Offset and More to check for nil
+	// PAGERDUTY: check for Teams, Offset, and More in response. Used pointers for Offset and More to check for nil
 	if data.Objects == nil {
 		return nil, "", &framework.Error{
 			Message: fmt.Sprintf("Datasource response is missing the expected objects tag: %s.", Teams),
@@ -237,7 +251,7 @@ func ParseResponseTeams(body []byte) (objects []map[string]any, nextCursor strin
 	// SCAFFOLDING #19 - pkg/adapter/datasource.go: Populate next page information (called cursor in SGNL adapters).
 	// Populate nextCursor with the cursor returned from the datasource, if present.
 
-	// PagerDuty: if more results available, increment the offset by the number of objects returned to get nextCursor
+	// PAGERDUTY: if more results available, increment the offset by the number of objects returned to get nextCursor
 	// If no more results, nextCursor is empty
 	if *data.More {
 		cursorIncrement := *data.Offset + len(data.Objects)

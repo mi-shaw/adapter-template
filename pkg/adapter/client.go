@@ -37,7 +37,7 @@ type Request struct {
 	// BaseURL is the Base URL of the datasource to query.
 	BaseURL string
 
-	// PagerDuty: URI to query for the entity type
+	// PAGERDUTY: path to query for the entity type
 	Path string
 
 	// Username is the username to use to authenticate with the datasource.

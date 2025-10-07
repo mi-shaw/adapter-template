@@ -40,7 +40,7 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 
 	// SCAFFOLDING #8 - pkg/adapter/validation.go: Modify this validation to match the authn mechanism(s) supported by the SoR.
 
-	// PagerDuty: Check for an API auth token. Ignore Basic auth
+	// PAGERDUTY: Check for an API auth token. Ignore Basic auth
 	if request.Auth == nil || request.Auth.HTTPAuthorization == "" {
 		return &framework.Error{
 			Message: "PagerDuty auth is missing required token.",
@@ -90,7 +90,7 @@ func (a *Adapter) ValidateGetPageRequest(ctx context.Context, request *framework
 	// attribute for the requested entity, check instead that Ordered is set to
 	// false.
 
-	// PagerDuty: require Ordered to be false
+	// PAGERDUTY: require Ordered to be false
 	if request.Ordered {
 		return &framework.Error{
 			Message: "Ordered must be set to false.",

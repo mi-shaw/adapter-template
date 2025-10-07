@@ -34,11 +34,16 @@ type Adapter struct {
 	Client Client
 }
 
-// PagerDuty: map of entity IDs mapped to the path to use when querying that entity
-// Extend with other entity type URIs as needed
+// PAGERDUTY: map of entity IDs mapped to the URL path to use when querying that entity
+// Included Teams entity and a few additional as examples to extend beyond Teams
+// PAGERDUTY EXTEND #1: If the path includes a variable, this map should be extended to support that,
+// likely with a function instead of only a map. E.g. calling team/{id} requires a dynamic path
 var (
 	Paths = map[string]string{
-		Teams: "teams",
+		Teams:               "teams",
+		Services:            "services",
+		EventOrchestrations: "event_orchestrations",
+		AuditRecords:        "audit/records",
 	}
 )
 
@@ -76,7 +81,8 @@ func (a *Adapter) RequestPageFromDatasource(
 	req := &Request{
 		BaseURL: request.Address,
 
-		// PagerDuty: add path based on reference to entity external ID in reference map
+		// PAGERDUTY: add path based on reference to entity external ID in reference map
+		// PAGERDUTY EXTEND #2: As mentioned in EXTEND #1, this could be implemented with a function and a map to support dynamic paths
 		Path: Paths[request.Entity.ExternalId],
 
 		// API Key or OAuth2 Token
