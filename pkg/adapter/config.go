@@ -25,6 +25,8 @@ type Config struct {
 	// SCAFFOLDING #3 - pkg/adapter/config.go - pass Adapter config fields.
 	// Every field MUST have a `json` tag.
 
+	// PAGERDUTY: Config is unchanged since sample requests had empty config struct
+
 	// Example config field.
 	APIVersion string `json:"apiVersion,omitempty"`
 }
